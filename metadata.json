@@ -1,0 +1,6 @@
+{
+  "name": "RM Montagem",
+  "description": "App para gerenciamento de equipe de montagem de móveis, permitindo atribuição de serviços, acompanhamento de valores e registro fotográfico da conclusão.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

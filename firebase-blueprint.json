@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "assembler"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Approval status" },
+        "fcmToken": { "type": "string", "description": "FCM token for push notifications" }
+      },
+      "required": ["uid", "name", "email", "role", "status"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Furniture assembly service job",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "value": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
+        "clientName": { "type": "string", "description": "Name of the client" },
+        "whatsapp": { "type": "string", "description": "Client WhatsApp number" },
+        "address": { "type": "string", "description": "Full assembly address" },
+        "photos": { "type": "array", "items": { "type": "string" }, "description": "Initial photos of the furniture/box" },
+        "finishedPhoto": { "type": "string", "description": "Photo of the finished furniture" },
+        "assignedTo": { "type": "string", "description": "UID of the assembler" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "value", "status", "createdAt", "clientName", "whatsapp", "address"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/jobs/{jobId}": {
+      "schema": "Job",
+      "description": "Assembly jobs"
+    }
+  }
+}

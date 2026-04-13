@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - role: string (required, 'admin' | 'assembler')
+    //   - status: string (required, 'pending' | 'approved' | 'rejected')
+    //   - fcmToken: string (optional)
+    //
+    // Collection: jobs
+    // Document ID: {jobId}
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - value: number (required)
+    //   - status: string (required, 'pending' | 'in_progress' | 'completed')
+    //   - clientName: string (required)
+    //   - whatsapp: string (required)
+    //   - address: string (required)
+    //   - photos: list (optional)
+    //   - finishedPhoto: string (optional)
+    //   - assignedTo: string (optional)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "idmaelbrito@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'status']) &&
+             data.uid is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['admin', 'assembler'] &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('fcmToken' in data) || (data.fcmToken is string));
+    }
+
+    function isValidJob(data) {
+      return data.keys().hasAll(['title', 'value', 'status', 'createdAt', 'clientName', 'whatsapp', 'address']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.value is number && data.value >= 0 &&
+             data.status in ['pending', 'in_progress', 'completed'] &&
+             data.clientName is string && data.clientName.size() > 0 &&
+             data.whatsapp is string && data.whatsapp.size() > 0 &&
+             data.address is string && data.address.size() > 0 &&
+             data.createdAt is timestamp &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             (!('photos' in data) || (data.photos is list && data.photos.size() < 10)) &&
+             (!('finishedPhoto' in data) || (data.finishedPhoto is string)) &&
+             (!('assignedTo' in data) || (data.assignedTo is string));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'assembler' || isAdmin()) &&
+                    (request.resource.data.status == 'pending' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role && request.resource.data.status == resource.data.status) || isAdmin());
+    }
+
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidJob(request.resource.data);
+      allow update: if isAuthenticated() && isValidJob(request.resource.data) && (
+        isAdmin() || 
+        (resource.data.status != 'completed' && (
+          // Assembler can pick up a job
+          (resource.data.status == 'pending' && request.resource.data.status == 'in_progress' && request.resource.data.assignedTo == request.auth.uid) ||
+          // Assembler can finish their own job
+          (resource.data.assignedTo == request.auth.uid && request.resource.data.status == 'completed' && 'finishedPhoto' in request.resource.data)
+        ))
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}
